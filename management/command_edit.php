@@ -256,7 +256,50 @@ class CommandEditController extends Controller {
     * @param Command $cmd
     */
    private function updateCmdInfo(Command $cmd) {
-      // TODO check cmd_teamid in grantedTeams
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// BF A TESTER
+// Afin d'eviter les aller-retour multiple avec la base de donnees, il faut factoriser les appels
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+//      // TODO check cmd_teamid in grantedTeams
+//
+//      $cmd_teamid = Tools::getSecurePOSTIntValue('cmd_teamid');
+//
+//      if ($cmd_teamid != $this->teamid) {
+//         // switch team (because you won't find the cmd in current team's contract list)
+//         $_SESSION['teamid'] = $cmd_teamid;
+//         $this->updateTeamSelector();
+//      }
+//      $cmd->setTeamid($cmd_teamid);
+//
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdName');
+//      // TODO UGLY WORKAROUND: command name cannot contain commas (,) because it is used as field separator in FilterManager
+//      $formattedValue = str_replace(",", ' ', $formattedValue);
+//      $cmd->setName($formattedValue);
+//
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdReference','');
+//      $cmd->setReference($formattedValue);
+//
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdVersion','');
+//      $cmd->setVersion($formattedValue);
+//
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdReporter','');
+//      $cmd->setReporter($formattedValue);
+//
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdDesc','');
+//      $cmd->setDesc($formattedValue);
+//
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdStartDate','');
+//      if ('' != $formattedValue) {
+//         $cmd->setStartDate(Tools::date2timestamp($formattedValue));
+//      }
+//      $formattedValue = Tools::getSecurePOSTStringValue('cmdDeadline', '');
+//      if ('' != $formattedValue) {
+//         $cmd->setDeadline(Tools::date2timestamp($formattedValue));
+//      }
+//
+//      $cmd->setState(SmartyTools::checkNumericValue($_POST['cmdState'], true));
+//      $cmd->setTotalSoldDays(SmartyTools::checkNumericValue($_POST['cmdTotalSoldDays'], true));
+////////////////////////////////////////////////////////////////////////////////////////
 
       $cmd_teamid = Tools::getSecurePOSTIntValue('cmd_teamid');
 
@@ -265,38 +308,25 @@ class CommandEditController extends Controller {
          $_SESSION['teamid'] = $cmd_teamid;
          $this->updateTeamSelector();
       }
-      $cmd->setTeamid($cmd_teamid);
-
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdName');
+      
+      $cmd_cmdName = Tools::getSecurePOSTStringValue('cmdName');
       // TODO UGLY WORKAROUND: command name cannot contain commas (,) because it is used as field separator in FilterManager
-      $formattedValue = str_replace(",", ' ', $formattedValue);
+      $cmd_cmdName = str_replace(",", ' ', $cmd_cmdName);
 
-      $cmd->setName($formattedValue);
-
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdReference','');
-      $cmd->setReference($formattedValue);
-
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdVersion','');
-      $cmd->setVersion($formattedValue);
-
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdReporter','');
-      $cmd->setReporter($formattedValue);
-
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdDesc','');
-      $cmd->setDesc($formattedValue);
-
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdStartDate','');
-      if ('' != $formattedValue) {
-         $cmd->setStartDate(Tools::date2timestamp($formattedValue));
-      }
-      $formattedValue = Tools::getSecurePOSTStringValue('cmdDeadline', '');
-      if ('' != $formattedValue) {
-         $cmd->setDeadline(Tools::date2timestamp($formattedValue));
-      }
-
-      $cmd->setState(SmartyTools::checkNumericValue($_POST['cmdState'], true));
-      $cmd->setTotalSoldDays(SmartyTools::checkNumericValue($_POST['cmdTotalSoldDays'], true));
-   }
+      $cmd_cmdReference = Tools::getSecurePOSTStringValue('cmdReference','');
+      $cmd_cmdVersion = Tools::getSecurePOSTStringValue('cmdVersion','');
+      $cmd_cmdReporter = Tools::getSecurePOSTStringValue('cmdReporter','');
+      $cmd_cmdDesc = Tools::getSecurePOSTStringValue('cmdDesc','');
+      $cmd_cmdStartDate = Tools::getSecurePOSTStringValue('cmdStartDate','');
+      $cmd_cmdDeadline = Tools::getSecurePOSTStringValue('cmdDeadline', '');
+      $cmd_cmdState = SmartyTools::checkNumericValue($_POST['cmdState'], true);
+      $cmd_cmdTotalSoldDays = SmartyTools::checkNumericValue($_POST['cmdTotalSoldDays'], true);
+      
+      // On met à jour en une fois pour un seul aller-retour avec la BDD
+      $cmd->setCmdInfo($cmd_teamid,$cmd_cmdName,$cmd_cmdReference,$cmd_cmdVersion,$cmd_cmdReporter,$cmd_cmdDesc,$cmd_cmdStartDate,$cmd_cmdDeadline,$cmd_cmdState,$cmd_cmdTotalSoldDays);
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      
+}
 
    /**
     * find CommandSets associated to all the teams i am member of.
@@ -343,10 +373,26 @@ class CommandEditController extends Controller {
 
       $formattedProjectList = implode (', ', array_keys($projects));
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// BF Il ne faut utiliser de fonction dans le SQL
+// On peut sortir la fonction car elle n'est utilisee qu'ici
+// le not exists fera automatiquement le limit 1
+// index: codev_command_table ==> (id, command_id) a etudier
+// index: codev_command_bug_table ==> (id, team_id) a etudier
+//      $query  = "SELECT * FROM {bug} ".
+//         " WHERE project_id IN (".$sql->db_param().") ".
+//         " AND 0 = is_issue_in_team_commands(id, ".$sql->db_param().") ".
+//         " ORDER BY id DESC";
       $query  = "SELECT * FROM {bug} ".
          " WHERE project_id IN (".$sql->db_param().") ".
-         " AND 0 = is_issue_in_team_commands(id, ".$sql->db_param().") ".
+		 " AND NOT EXISTS (select 1 ".
+		 "                 from  codev_command_bug_table, codev_command_table ".
+		 "                 where codev_command_bug_table.bug_id = id ".
+		 "                 and   codev_command_table.id = codev_command_bug_table.command_id ".
+         "                 and   codev_command_table.team_id = ".$sql->db_param().
+         "                 and   )".
          " ORDER BY id DESC";
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       $result = $sql->sql_query($query, array($formattedProjectList, $teamid));
 

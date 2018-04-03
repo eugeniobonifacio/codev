@@ -275,14 +275,26 @@ class Command extends Model {
                    " AND bug_id NOT IN (SELECT id FROM {bug})";
          $sql->sql_query($query1, array($this->wbsid));
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// BF A TESTER
+// - le "bug_id is not null" ne sert à rien
+// - prefere le not exists au not in
+// - Faire un index codev_wbs_table (root_id, bug_id) 
+//         $query3 = "SELECT cbt.bug_id FROM codev_command_bug_table AS cbt".
+//               " WHERE cbt.command_id = ".$sql->db_param().
+//               " AND cbt.bug_id NOT IN ( ".
+//               "     SELECT bug_id FROM codev_wbs_table ".
+//               "       WHERE root_id = ".$sql->db_param().
+//               "       AND bug_id IS NOT NULL)";
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
          // --- find issues present in Command and not present in WBS
          // WARN TODO : this request is extremely slow because of the 'NOT IN'
          $query3 = "SELECT cbt.bug_id FROM codev_command_bug_table AS cbt".
                " WHERE cbt.command_id = ".$sql->db_param().
-               " AND cbt.bug_id NOT IN ( ".
-               "     SELECT bug_id FROM codev_wbs_table ".
-               "       WHERE root_id = ".$sql->db_param().
-               "       AND bug_id IS NOT NULL)";
+               " AND  NOT EXISTS ( ".
+               "     SELECT 1 FROM codev_wbs_table ".
+               "       WHERE codev_wbs_table.root_id = ".$sql->db_param().
+               "       AND codev_wbs_table.bug_id = cbt.bug_id)";
          $result3 = $sql->sql_query($query3, array($this->id, $this->wbsid));
          while ($row3 = $sql->fetchObject($result3)) {
                try {
@@ -293,14 +305,26 @@ class Command extends Model {
                }
          }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// BF A TESTER
+// - le "bug_id is not null" ne sert à rien
+// - prefere le not exists au not in
+// - Faire un index codev_command_bug_table (command_id, bug_id) 
+//         $query4 = "DELETE FROM codev_wbs_table".
+//                   " WHERE root_id = ".$sql->db_param().
+//                   " AND bug_id IS NOT NULL ".
+//                   " AND bug_id NOT IN ( ".
+//                   "     SELECT bug_id FROM codev_command_bug_table ".
+//                   "     WHERE command_id = ".$sql->db_param().")";
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
          // --- find issues present in WBS and not present in Command
          // WARN TODO : this request is extremely slow because of the 'NOT IN'
          $query4 = "DELETE FROM codev_wbs_table".
-                   " WHERE root_id = ".$sql->db_param().
-                   " AND bug_id IS NOT NULL ".
-                   " AND bug_id NOT IN ( ".
-                   "     SELECT bug_id FROM codev_command_bug_table ".
-                   "     WHERE command_id = ".$sql->db_param().")";
+                   " WHERE codev_wbs_table.root_id = ".$sql->db_param().   
+                   " AND NOT EXISTS  ( ".
+                   "     SELECT 1 FROM codev_command_bug_table ".
+                   "     WHERE codev_command_bug_table.command_id = ".$sql->db_param().
+                   "     AND codev_command_bug_table.bug_id = codev_wbs_table.bug_id)";
          try {
             $sql->sql_query($query4, array($this->wbsid, $this->id));
          } catch (Exception $e) {
@@ -772,6 +796,101 @@ class Command extends Model {
       }
       return $cerrList;
    }
+   
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// BF A TESTER ET A REECRIRE
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+   public function setCmdInfo($cmd_teamid,$cmd_cmdName,$cmd_cmdReference,$cmd_cmdVersion,$cmd_cmdReporter,$cmd_cmdDesc,$cmd_cmdStartDate,$cmd_cmdDeadline,$cmd_cmdState,$cmd_cmdTotalSoldDays) {
+      var int i = 0;
+      
+      $query = "UPDATE codev_command_table SET".
+  
+      if($this->teamid != $cmd_teamid) {
+         $this->teamid = $cmd_teamid;
+         i += 1;
+         $query .= " , teamid = ".$sql->db_param()
+         $q_params[]=$cmd_teamid;
+      }
+         
+      if($this->name != $cmd_cmdName) {
+         $this->name = $cmd_cmdName;
+         i += 1;
+         $query .= " , name = ".$sql->db_param()
+         $q_params[]=$cmd_cmdName;
+      }
+      if($this->reference != $cmd_cmdReference) {
+         $this->reference = $cmd_cmdReference;
+         i += 1;
+         $query .= " , reference = ".$sql->db_param()
+         $q_params[]=$cmd_cmdReference;
+      }
+      if($this->version != $cmd_cmdVersion) {
+         $this->version = $cmd_cmdVersion;
+         i += 1;
+         $query .= " , version = ".$sql->db_param()
+         $q_params[]=$cmd_cmdVersion;
+      }
+      if($this->reporter != $cmd_cmdReporter) {
+         $this->reporter = $cmd_cmdReporter;
+         i += 1;
+         $query .= " , reporter = ".$sql->db_param()
+         $q_params[]=$cmd_cmdReporter;
+      }
+      if($this->description != $cmd_cmdDesc) {
+         $this->description = $cmd_cmdDesc;
+         i += 1;
+         $query .= " , description = ".$sql->db_param()
+         $q_params[]=$cmd_cmdDesc;
+      }
+      
+      if ('' != $cmd_cmdStartDate) {
+        $cmd_cmdStartDate=Tools::date2timestamp($cmd_cmdStartDate));          
+        if($this->startDate != $cmd_cmdStartDate) {
+           $this->startDate = $cmd_cmdStartDate;
+           i += 1;
+           $query .= " , startDate = ".$sql->db_param()
+           $q_params[]=$cmd_cmdStartDate;
+        }
+      }
+      
+      if ('' != $cmd_cmdStartDate) {
+        $cmd_cmdDeadline=Tools::date2timestamp($cmd_cmdStartDate));       
+        if($this->deadline != $cmd_cmdDeadline) {
+           $this->deadline = $cmd_cmdDeadline;
+           i += 1;
+           $query .= " , deadline = ".$sql->db_param()
+           $q_params[]=$cmd_cmdDeadline;
+        }
+      }
+
+      if($this->state != $cmd_cmdState) {
+         $this->state = $cmd_cmdState;
+         i += 1;
+         $query .= " , state = ".$sql->db_param()
+         $q_params[]=$cmd_cmdState;
+      }
+      
+      if($this->totalSoldDays != floatval($value) * 100) {
+         $this->totalSoldDays = floatval($value) * 100;
+         i += 1;
+         $query .= " , total_days = ".$sql->db_param()
+         $q_params[]=$this->totalSoldDays;
+      }
+      
+      // On met a jour en une fois
+      if (i > 0) {
+         $query = str_replace("SET , ", 'SET ', $query);
+         $query .= " WHERE id = ".$sql->db_param();
+         $q_params[]=$this->id;
+      
+         $sql = AdodbWrapper::getInstance();
+         $result = $sql->sql_query($query, $q_params);
+                
+      }
+      
+    }     
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 }
 
